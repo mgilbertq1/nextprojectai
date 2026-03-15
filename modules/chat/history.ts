@@ -8,17 +8,22 @@ export type ChatMessage = {
 
 export async function getRecentChatHistory(
   userId: string,
-  limit: number = 10
+  limit: number,
+  conversationId: string
 ): Promise<ChatMessage[]> {
-
-  const rows = await db.execute<ChatMessage>(sql`
+  const result = await db.execute<{ role: string; content: string }>(sql`
     select role, content
     from chats
     where user_id = ${userId}
+      and conversation_id = ${conversationId}
     order by created_at desc
     limit ${limit}
   `);
 
-  // reverse so oldest → newest
-  return rows.reverse();
+  return result
+    .reverse()
+    .map((m) => ({
+      role: m.role as "user" | "assistant",
+      content: m.content,
+    }));
 }

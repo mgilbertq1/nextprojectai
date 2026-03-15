@@ -1,46 +1,64 @@
-import { FastifyRequest, FastifyReply } from 'fastify'
-import { db } from '@/db/drizzle'
-import { users } from '@/db/schema'
-import { eq } from 'drizzle-orm'
-import { verifyAccessToken } from '@/config/jwt'
+import { FastifyRequest } from "fastify";
+import { db } from "@/db/drizzle";
+import { users } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { verifyAccessToken } from "@/config/jwt";
 
-export async function requireUser(
-  request: FastifyRequest,
-  reply: FastifyReply
-) {
-const token = request.cookies?.access_token
+export type AuthUser = {
+  id: string;
+  role: string;
+};
 
-if (!token) {
-  return reply.status(401).send({ error: 'Unauthorized' })
-}
+export async function requireUser(request: FastifyRequest): Promise<AuthUser> {
+  const token = request.cookies?.access_token;
 
-const payload = verifyAccessToken(token)
+  if (!token) {
+    throw request.server.httpErrors.unauthorized();
+  }
 
-if (!payload || !payload.user_id) {
-  return reply.status(401).send({ error: 'Invalid token' })
-}
+  const payload = verifyAccessToken(token) as { sub: string };
 
+  if (!payload?.sub) {
+    throw request.server.httpErrors.unauthorized();
+  }
 
-  const user = await db
+  const result = await db
     .select({
       id: users.id,
       role: users.role,
       banned: users.banned,
     })
     .from(users)
-    .where(eq(users.id, payload.user_id))
-    .limit(1)
+    .where(eq(users.id, payload.sub))
+    .limit(1);
 
-  if (user.length === 0) {
-    return reply.status(401).send({ error: 'User not found' })
+  const user = result[0];
+
+  if (!user) {
+    throw request.server.httpErrors.unauthorized();
   }
 
-  if (user[0].banned) {
-    return reply.status(403).send({ error: 'User banned' })
+  if (user.banned) {
+    throw request.server.httpErrors.forbidden("User banned");
   }
 
-  request.user = {
-    id: user[0].id,
-    role: user[0].role,
+  const authUser: AuthUser = {
+    id: user.id,
+    role: user.role,
+  };
+
+  // attach ke request
+  (request as any).user = authUser;
+
+  return authUser;
+}
+
+export async function requireAdmin(request: FastifyRequest) {
+  const user = await requireUser(request);
+
+  if (user.role !== "admin") {
+    throw request.server.httpErrors.forbidden("Admin only");
   }
+
+  return user;
 }

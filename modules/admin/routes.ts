@@ -1,74 +1,105 @@
 import { FastifyInstance } from "fastify";
 import { requireAdmin } from "../auth/hooks";
-import { db } from "../../db/drizzle";
-import { sql } from "drizzle-orm";
-import type { DbUser } from "../../types/db";
+
+import { getMessageTrend, getTokenTrend } from "./analytics";
+import { getSystemFlags, updateSystemFlag } from "./system";
+import { parseDateRange } from "./utils";
+import { getDashboardOverview } from "./dashboard";
+import { getUsersMonthlyGrowth } from "./dashboardGrowth";
+import { getActiveUsers } from "./dashboardActive";
+import { getLoginActivity, deleteLoginLog } from "./loginActivity";
 
 export async function adminRoutes(app: FastifyInstance) {
 
-  // ======================
-  // LIST USERS
-  // ======================
-  app.get("/admin/users", async (request) => {
-    await requireAdmin(request);
+  // =========================
+  // ANALYTICS
+  // =========================
+  app.get("/analytics/messages", async (req) => {
+    await requireAdmin(req)
 
-    const result = await db.execute<DbUser>(sql`
-      select * from users
-      order by created_at desc
-    `);
+    const { from, to } = parseDateRange(req)
 
-    return result.map((user) => ({
-      id: user.id,
-      email: user.email,
-      role: user.role,
-      banned: user.banned,
-      created_at: user.created_at,
-    }));
-  });
+    return getMessageTrend(from, to)
+  })
 
-  // ======================
-  // BAN USER
-  // ======================
-  app.post("/admin/users/:id/ban", async (request) => {
-    const admin = await requireAdmin(request);
+  app.get("/analytics/tokens", async (req) => {
+    await requireAdmin(req)
 
-    const { id } = request.params as { id: string };
+    const { from, to } = parseDateRange(req)
 
-   await db.execute(sql`
-  update users
-  set banned = ${true}
-  where id = ${id}::uuid
-`);
+    return getTokenTrend(from, to)
+  })
 
+  // =========================
+  // DASHBOARD
+  // =========================
+  app.get("/dashboard/overview", async (req) => {
+    await requireAdmin(req)
 
+    return getDashboardOverview()
+  })
 
-    return {
-      status: "banned",
-      user_id: id,
-      by: admin.id,
-    };
-  });
+  app.get("/dashboard/users-growth", async (req) => {
+    await requireAdmin(req)
 
-  // ======================
-  // UNBAN USER
-  // ======================
-  app.post("/admin/users/:id/unban", async (request) => {
-    const admin = await requireAdmin(request);
+    return getUsersMonthlyGrowth()
+  })
 
-    const { id } = request.params as { id: string };
+  app.get("/dashboard/active-users", async (req) => {
+    await requireAdmin(req)
 
-  await db.execute(sql`
-  update users
-  set banned = ${false}
-  where id = ${id}::uuid
-`);
+    const { range = "24h" } = req.query as {
+      range?: string
+    }
 
+    return getActiveUsers(range)
+  })
 
+  // =========================
+  // LOGIN ACTIVITY
+  // =========================
+  app.get("/login-activity", async (req) => {
+    await requireAdmin(req)
 
-    return {
-      status: "unbanned",
-      user_id: id,
-      by: admin.id,
-    };
-  });
+    const { page = "1", limit = "10" } = req.query as {
+      page?: string
+      limit?: string
+    }
+
+    return getLoginActivity(Number(page), Number(limit))
+  })
+
+  app.delete("/login-activity/:id", async (req) => {
+    await requireAdmin(req)
+
+    const { id } = req.params as { id: string }
+
+    await deleteLoginLog(id)
+
+    return { status: "deleted" }
+  })
+
+  // =========================
+  // SYSTEM CONTROL
+  // =========================
+  app.get("/system", async (req) => {
+    await requireAdmin(req)
+
+    return getSystemFlags()
+  })
+
+  app.patch("/system", async (req) => {
+    await requireAdmin(req)
+
+    const { key, value } = req.body as {
+      key: string
+      value: any
+    }
+
+    if (!key) {
+      throw req.server.httpErrors.badRequest("Key required")
+    }
+
+    return updateSystemFlag(key, value)
+  })
 }

@@ -5,9 +5,44 @@ import { verifyPassword, hashPassword } from "../../utils/password";
 import { createAccessToken } from "../../config/jwt";
 import type { DbUser } from "../../types/db";
 import { randomUUID } from "crypto";
+import { requireUser } from "./hooks";
+
+async function logLogin({
+  userId,
+  method,
+  success,
+  ip,
+  userAgent,
+}: {
+  userId: string | null;
+  method: string;
+  success: boolean;
+  ip: string | null;
+  userAgent: string | null;
+}) {
+  await db.execute(sql`
+    insert into login_logs (
+      id,
+      user_id,
+      method,
+      success,
+      ip_address,
+      user_agent,
+      created_at
+    )
+    values (
+      ${randomUUID()},
+      ${userId},
+      ${method},
+      ${success},
+      ${ip},
+      ${userAgent},
+      now()
+    )
+  `);
+}
 
 export async function authRoutes(app: FastifyInstance) {
-
   // ======================
   // REGISTER
   // ======================
@@ -21,7 +56,6 @@ export async function authRoutes(app: FastifyInstance) {
       throw app.httpErrors.badRequest("Email and password required");
     }
 
-    // check existing email
     const existing = await db.execute<DbUser>(sql`
       select * from users
       where email = ${email}
@@ -54,7 +88,7 @@ export async function authRoutes(app: FastifyInstance) {
     reply.setCookie("access_token", token, {
       httpOnly: true,
       sameSite: "lax",
-      secure: false, // prod: true
+      secure: false, // production: true
       path: "/",
     });
 
@@ -70,6 +104,12 @@ export async function authRoutes(app: FastifyInstance) {
       password: string;
     };
 
+    const ip =
+      (request.headers["x-forwarded-for"] as string)?.split(",")[0] ??
+      request.ip;
+
+    const userAgent = request.headers["user-agent"] ?? null;
+
     const result = await db.execute<DbUser>(sql`
       select * from users
       where email = ${email}
@@ -79,6 +119,14 @@ export async function authRoutes(app: FastifyInstance) {
     const user = result[0];
 
     if (!user) {
+      await logLogin({
+        userId: null,
+        method: "email",
+        success: false,
+        ip,
+        userAgent,
+      });
+
       throw app.httpErrors.unauthorized("Invalid credentials");
     }
 
@@ -87,7 +135,16 @@ export async function authRoutes(app: FastifyInstance) {
     }
 
     const ok = await verifyPassword(password, user.password_hash);
+
     if (!ok) {
+      await logLogin({
+        userId: user.id,
+        method: "email",
+        success: false,
+        ip,
+        userAgent,
+      });
+
       throw app.httpErrors.unauthorized("Invalid credentials");
     }
 
@@ -99,11 +156,26 @@ export async function authRoutes(app: FastifyInstance) {
     reply.setCookie("access_token", token, {
       httpOnly: true,
       sameSite: "lax",
-      secure: false, // prod: true
+      secure: false,
       path: "/",
     });
 
-    return { status: "logged_in" };
+    await logLogin({
+      userId: user.id,
+      method: "email",
+      success: true,
+      ip,
+      userAgent,
+    });
+
+    return {
+      status: "logged_in",
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+      },
+    };
   });
 
   // ======================
@@ -112,5 +184,27 @@ export async function authRoutes(app: FastifyInstance) {
   app.post("/auth/logout", async (_, reply) => {
     reply.clearCookie("access_token", { path: "/" });
     return { status: "logged_out" };
+  });
+
+  // ======================
+  // CURRENT USER
+  // ======================
+  app.get("/auth/me", async (request) => {
+    const user = await requireUser(request);
+
+    const result = await db.execute(sql`
+      select id, email, role
+      from users
+      where id = ${user.id}
+      limit 1
+    `);
+
+    const dbUser = result[0];
+
+    return {
+      id: dbUser.id,
+      email: dbUser.email,
+      role: dbUser.role,
+    };
   });
 }

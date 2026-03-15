@@ -1,0 +1,25 @@
+import sgMail from "@sendgrid/mail";
+
+sgMail.setApiKey(process.env.SENDGRID_API_KEY as string);
+
+export async function sendSupportReply(
+  to: string,
+  subject: string,
+  message: string
+) {
+  const msg = {
+    to,
+    from: process.env.SUPPORT_EMAIL as string, // verified sender
+    subject,
+    html: `
+      <div style="font-family:Arial,sans-serif">
+        <h3>${subject}</h3>
+        <p>${message}</p>
+        <hr/>
+        <small>This email was sent from Support Team.</small>
+      </div>
+    `,
+  };
+
+  await sgMail.send(msg);
+}

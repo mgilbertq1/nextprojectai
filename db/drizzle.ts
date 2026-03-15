@@ -3,7 +3,7 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import { env } from "../config/env";
 
 export const sql = postgres(env.DATABASE_URL, {
-  ssl: "require", // ✅ penting untuk Supabase
+  ssl: "require",
   max: 10,
 });
 
