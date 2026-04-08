@@ -48,8 +48,8 @@ export async function settingsRoutes(app: FastifyInstance) {
           notify_completion, color_mode, chat_font, search_enabled
         )
         values (
-          ${user.id}, ${fullName}, ${callName}, ${occupation}, ${preferences ? JSON.stringify(preferences) : null},
-          ${notifyCompletion}, ${colorMode}, ${chatFont}, ${searchEnabled}
+          ${user.id}, ${fullName ?? null}, ${callName ?? null}, ${occupation ?? null}, ${preferences ? JSON.stringify(preferences) : null},
+          ${notifyCompletion ?? null}, ${colorMode ?? null}, ${chatFont ?? null}, ${searchEnabled ?? null}
         )
         on conflict (user_id)
         do update set
