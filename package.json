@@ -1,8 +1,8 @@
 {
   "scripts": {
     "dev": "tsx watch server.ts",
-    "build": "tsc",
-    "start": "node dist/server.js"
+    "start": "tsx server.ts",
+    "build": "echo 'no build needed'"
   },
   "dependencies": {
     "@fastify/cookie": "^11.0.2",
