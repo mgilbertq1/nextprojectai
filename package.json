@@ -20,6 +20,7 @@
     "jsonwebtoken": "^9.0.3",
     "multipart": "^0.1.5",
     "pg": "^8.19.0",
+    "tsx": "^4.21.0",
     "postgres": "^3.4.8",
     "resend": "^6.9.4"
   },
@@ -29,7 +30,6 @@
     "@types/node": "^25.5.0",
     "drizzle-kit": "^0.31.9",
     "prettier": "3.8.1",
-    "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   }
 }
