@@ -70,7 +70,7 @@ export async function authRoutes(app: FastifyInstance) {
     const token = createAccessToken({ sub: userId, role: "user" });
 
     reply.setCookie("access_token", token, {
-      httpOnly: true, sameSite: "lax", secure: false, path: "/",
+      httpOnly: true, sameSite: "none", secure: true, path: "/",
     });
 
     return {
@@ -109,7 +109,7 @@ export async function authRoutes(app: FastifyInstance) {
     const token = createAccessToken({ sub: user.id, role: user.role });
 
     reply.setCookie("access_token", token, {
-      httpOnly: true, sameSite: "lax", secure: false, path: "/",
+      httpOnly: true, sameSite: "none", secure: true, path: "/",
     });
 
     await logLogin({ userId: user.id, method: "email", success: true, ip, userAgent });
