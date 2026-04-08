@@ -11,12 +11,14 @@ export async function getDashboardOverview() {
   const [totalUsers] = await db.execute<{ count: number }>(sql`
     select count(*)::int as count
     from users
+    where deleted_at is null
   `);
 
   const [usersLastMonth] = await db.execute<{ count: number }>(sql`
     select count(*)::int as count
     from users
-    where created_at < date_trunc('month', now())
+    where deleted_at is null
+      and created_at < date_trunc('month', now())
   `);
 
   const users_growth_pct = calculateGrowth(
@@ -27,13 +29,15 @@ export async function getDashboardOverview() {
   const [newUsersThisMonth] = await db.execute<{ count: number }>(sql`
     select count(*)::int as count
     from users
-    where created_at >= date_trunc('month', now())
+    where deleted_at is null
+      and created_at >= date_trunc('month', now())
   `);
 
   const [newUsersLastMonth] = await db.execute<{ count: number }>(sql`
     select count(*)::int as count
     from users
-    where created_at >= date_trunc('month', now()) - interval '1 month'
+    where deleted_at is null
+      and created_at >= date_trunc('month', now()) - interval '1 month'
       and created_at < date_trunc('month', now())
   `);
 
@@ -61,10 +65,8 @@ export async function getDashboardOverview() {
   return {
     users_total: totalUsers.count,
     users_growth_pct,
-
     new_users_this_month: newUsersThisMonth.count,
     new_users_growth_pct,
-
     tokens_total: tokens.total,
     tokens_growth_pct,
   };

@@ -4,6 +4,7 @@ import { sql } from "drizzle-orm";
 export type ChatMessage = {
   role: "user" | "assistant";
   content: string;
+  image_url?: string | null;
 };
 
 export async function getRecentChatHistory(
@@ -11,8 +12,8 @@ export async function getRecentChatHistory(
   limit: number,
   conversationId: string
 ): Promise<ChatMessage[]> {
-  const result = await db.execute<{ role: string; content: string }>(sql`
-    select role, content
+  const result = await db.execute<{ role: string; content: string; image_url: string | null }>(sql`
+    select role, content, image_url
     from chats
     where user_id = ${userId}
       and conversation_id = ${conversationId}
@@ -25,5 +26,6 @@ export async function getRecentChatHistory(
     .map((m) => ({
       role: m.role as "user" | "assistant",
       content: m.content,
+      image_url: m.image_url,
     }));
 }

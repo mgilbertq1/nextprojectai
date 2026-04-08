@@ -1,32 +1,36 @@
-import { env } from "../../config/env";
-
-const BASE = "https://api.x.ai/v1";
-
 // ==========================
 // NON-STREAMING
 // ==========================
-export async function grokCompletion(props: {
+export async function aiCompletion(props: {
   model: string;
   prompt: string;
+  apiKey: string;
+  baseUrl: string;
+  imageBase64?: string;
 }) {
-  const res = await fetch(`${BASE}/chat/completions`, {
+  const content = props.imageBase64
+    ? [
+        { type: "text", text: props.prompt },
+        { type: "image_url", image_url: { url: props.imageBase64 } },
+      ]
+    : props.prompt;
+
+  const res = await fetch(`${props.baseUrl}/chat/completions`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${env.GROK_API_KEY}`,
+      Authorization: `Bearer ${props.apiKey}`,
     },
     body: JSON.stringify({
       model: props.model,
-      messages: [
-        { role: "user", content: props.prompt }
-      ],
-      temperature: 0.7
+      messages: [{ role: "user", content }],
+      temperature: 0.7,
     }),
   });
 
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`Grok API error: ${text}`);
+    throw new Error(`AI API error: ${text}`);
   }
 
   return (await res.json()) as import("./types").GrokChatResponse;
@@ -35,20 +39,30 @@ export async function grokCompletion(props: {
 // ==========================
 // STREAMING
 // ==========================
-export async function grokStream(props: {
+export async function aiStream(props: {
   model: string;
   prompt: string;
+  apiKey: string;
+  baseUrl: string;
+  imageBase64?: string;
 }) {
-  const res = await fetch(`${BASE}/chat/completions`, {
+  const content = props.imageBase64
+    ? [
+        { type: "text", text: props.prompt },
+        { type: "image_url", image_url: { url: props.imageBase64 } },
+      ]
+    : props.prompt;
+
+  const res = await fetch(`${props.baseUrl}/chat/completions`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${env.GROK_API_KEY}`,
+      Authorization: `Bearer ${props.apiKey}`,
     },
     body: JSON.stringify({
       model: props.model,
-      messages: [{ role: "user", content: props.prompt }],
-      stream: true
+      messages: [{ role: "user", content }],
+      stream: true,
     }),
   });
 
@@ -60,3 +74,27 @@ export async function grokStream(props: {
   return res.body;
 }
 
+// ==========================
+// LEGACY GROK (fallback)
+// ==========================
+import { env } from "../../config/env";
+
+export async function grokCompletion(props: { model: string; prompt: string; imageBase64?: string }) {
+  return aiCompletion({
+    model: props.model,
+    prompt: props.prompt,
+    apiKey: env.GROK_API_KEY,
+    baseUrl: "https://api.x.ai/v1",
+    imageBase64: props.imageBase64,
+  });
+}
+
+export async function grokStream(props: { model: string; prompt: string; imageBase64?: string }) {
+  return aiStream({
+    model: props.model,
+    prompt: props.prompt,
+    apiKey: env.GROK_API_KEY,
+    baseUrl: "https://api.x.ai/v1",
+    imageBase64: props.imageBase64,
+  });
+}

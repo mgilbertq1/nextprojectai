@@ -1,5 +1,5 @@
-import { SYSTEM_PROMPT } from "./systemPrompt";
-import { grokCompletion } from "./client";
+import { getSystemPrompt } from "./systemPrompt";
+import { aiCompletion, grokCompletion } from "./client";
 import { db } from "../../db/drizzle";
 import { sql } from "drizzle-orm";
 import type { ChatMessage } from "../chat/history";
@@ -9,7 +9,13 @@ export async function generateReply(
   conversationId: string,
   history: ChatMessage[],
   userMessage: string,
+  modelConfig?: { model: string; apiKey: string; baseUrl: string }
 ): Promise<string> {
+
+  // ======================
+  // LOAD SYSTEM PROMPT (FROM DB)
+  // ======================
+  const systemPrompt = await getSystemPrompt();
 
   // ======================
   // LOAD USER SETTINGS
@@ -25,19 +31,14 @@ export async function generateReply(
   `);
 
   const userProfile = settings[0]
-    ? `
-Name: ${settings[0].call_name ?? "User"}
-Occupation: ${settings[0].occupation ?? "Unknown"}
-`
+    ? `Name: ${settings[0].call_name ?? "User"}\nOccupation: ${settings[0].occupation ?? "Unknown"}`
     : "";
-
 
   // ======================
   // LOAD USER MEMORY
   // ======================
   const memories = await db.execute<{ content: string }>(sql`
-    select content
-    from memories
+    select content from memories
     where user_id = ${userId}
     order by updated_at desc
     limit 5
@@ -47,26 +48,22 @@ Occupation: ${settings[0].occupation ?? "Unknown"}
     ? memories.map((m) => `- ${m.content}`).join("\n")
     : "";
 
-
   // ======================
   // LOAD CONVERSATION SUMMARY
   // ======================
   const summaryResult = await db.execute<{ content: string }>(sql`
-    select content
-    from conversation_summaries
-    where user_id = ${userId}
-      and conversation_id = ${conversationId}
+    select content from conversation_summaries
+    where user_id = ${userId} and conversation_id = ${conversationId}
     limit 1
   `);
 
   const summaryText = summaryResult[0]?.content ?? "";
 
-
   // ======================
   // BUILD CHAT HISTORY
   // ======================
   const historyText = history
-    .slice(-8) // limit history for token safety
+    .slice(-8)
     .map((m) =>
       m.role === "user"
         ? `User: ${m.content}`
@@ -74,12 +71,11 @@ Occupation: ${settings[0].occupation ?? "Unknown"}
     )
     .join("\n");
 
-
   // ======================
   // BUILD FINAL PROMPT
   // ======================
   const prompt = `
-${SYSTEM_PROMPT}
+${systemPrompt}
 
 === USER PROFILE ===
 ${userProfile}
@@ -97,29 +93,29 @@ User: ${userMessage}
 Assistant:
 `;
 
-
   // ======================
   // CALL MODEL
   // ======================
-  const result = await grokCompletion({
-    model: "grok-4-1-fast-non-reasoning",
-    prompt,
-  });
-
+  const result = modelConfig
+    ? await aiCompletion({
+        model: modelConfig.model,
+        prompt,
+        apiKey: modelConfig.apiKey,
+        baseUrl: modelConfig.baseUrl
+      })
+    : await grokCompletion({
+        model: "grok-4-1-fast-non-reasoning",
+        prompt
+      });
 
   const text =
     result.choices?.[0]?.message?.content ??
     result.choices?.[0]?.text ??
     "";
 
-
-  // ======================
-  // DEBUG LOGS
-  // ======================
   console.log("MEMORY COUNT:", memories.length);
   console.log("SUMMARY USED:", !!summaryText);
   console.log("HISTORY LENGTH:", history.length);
-
 
   return text.trim();
 }
