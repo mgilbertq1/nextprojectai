@@ -74,7 +74,7 @@ export async function settingsRoutes(app: FastifyInstance) {
       return { status: "saved" };
     } catch (e: any) {
       console.error("Settings save error:", e);
-      throw app.httpErrors.internalServerError("Database Error: " + (e.message || "Unknown error"));
+      throw app.httpErrors.badRequest("DB_ERROR: " + (e.message || "Unknown error"));
     }
   });
 
