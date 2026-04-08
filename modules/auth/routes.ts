@@ -129,7 +129,7 @@ export async function authRoutes(app: FastifyInstance) {
   // LOGOUT
   // ======================
   app.post("/auth/logout", async (_, reply) => {
-    reply.clearCookie("access_token", { path: "/" });
+    reply.clearCookie("access_token", { path: "/", sameSite: "none", secure: true });
     return { status: "logged_out" };
   });
 
