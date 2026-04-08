@@ -40,41 +40,42 @@ export async function settingsRoutes(app: FastifyInstance) {
       notifyCompletion, colorMode, chatFont, searchEnabled,
     } = request.body as any;
 
-    // Simpan ke user_settings
-    await db.execute(sql`
-      insert into user_settings (
-        user_id, full_name, call_name, occupation, preferences,
-        notify_completion, color_mode, chat_font, search_enabled
-      )
-      values (
-        ${user.id}, ${fullName}, ${callName}, ${occupation}, ${preferences},
-        ${notifyCompletion}, ${colorMode}, ${chatFont}, ${searchEnabled}
-      )
-      on conflict (user_id)
-      do update set
-        full_name         = excluded.full_name,
-        call_name         = excluded.call_name,
-        occupation        = excluded.occupation,
-        preferences       = excluded.preferences,
-        notify_completion = excluded.notify_completion,
-        color_mode        = excluded.color_mode,
-        chat_font         = excluded.chat_font,
-        search_enabled    = excluded.search_enabled,
-        updated_at        = now()
-    `);
+    try {
+      // Simpan ke user_settings
+      await db.execute(sql`
+        insert into user_settings (
+          user_id, full_name, call_name, occupation, preferences,
+          notify_completion, color_mode, chat_font, search_enabled
+        )
+        values (
+          ${user.id}, ${fullName}, ${callName}, ${occupation}, ${preferences ? JSON.stringify(preferences) : null},
+          ${notifyCompletion}, ${colorMode}, ${chatFont}, ${searchEnabled}
+        )
+        on conflict (user_id)
+        do update set
+          full_name         = excluded.full_name,
+          call_name         = excluded.call_name,
+          occupation        = excluded.occupation,
+          preferences       = excluded.preferences,
+          notify_completion = excluded.notify_completion,
+          color_mode        = excluded.color_mode,
+          chat_font         = excluded.chat_font,
+          search_enabled    = excluded.search_enabled,
+          updated_at        = now()
+      `);
 
-    // Update nama di tabel users
-    await db.execute(sql`
-      update users
-      set name = ${fullName}, username = ${callName}
-      where id = ${user.id}
-    `);
+      // Update nama di tabel users
+      await db.execute(sql`
+        update users
+        set name = ${fullName}, username = ${callName}
+        where id = ${user.id}
+      `);
 
-    // ── DIHAPUS: jangan insert preferences ke tabel memories ──────────────────
-    // Preferences disimpan di user_settings.preferences
-    // Memories dikelola terpisah via /memories endpoints
-
-    return { status: "saved" };
+      return { status: "saved" };
+    } catch (e: any) {
+      console.error("Settings save error:", e);
+      throw app.httpErrors.internalServerError("Database Error: " + (e.message || "Unknown error"));
+    }
   });
 
   // ================================
