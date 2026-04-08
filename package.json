@@ -1,6 +1,6 @@
 {
   "scripts": {
-    "start": "node_modules/.bin/tsx server.ts",
+    "start": "node --import tsx server.ts",
     "dev": "tsx watch server.ts",
     "build": "echo 'no build'"
   },
