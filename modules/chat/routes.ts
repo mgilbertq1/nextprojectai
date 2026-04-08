@@ -228,7 +228,7 @@ export async function chatRoutes(app: FastifyInstance) {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
       Connection: "keep-alive",
-      "Access-Control-Allow-Origin": "http://localhost:3000",
+      "Access-Control-Allow-Origin": request.headers.origin || "http://localhost:3000",
       "Access-Control-Allow-Credentials": "true",
       "X-Accel-Buffering": "no",
     });
